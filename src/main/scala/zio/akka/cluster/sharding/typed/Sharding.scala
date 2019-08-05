@@ -5,7 +5,7 @@ import akka.actor.typed.scaladsl.Behaviors
 import akka.cluster.sharding.typed.ShardingEnvelope
 import akka.cluster.sharding.typed.scaladsl.{ClusterSharding, EntityTypeKey}
 import zio.akka.cluster.sharding.{Entity, MessageEnvelope}
-import zio.akka.cluster.sharding.MessageEnvelope.{MessagePayload, PoisonPillPayload}
+import zio.akka.cluster.sharding.MessageEnvelope.{MessagePayload, Payload, PoisonPillPayload}
 import zio.{Ref, Runtime, Task, UIO, ZIO}
 
 /**
@@ -40,14 +40,14 @@ object Sharding {
       shardingRegion <- Task(
         ClusterSharding(actorSystem).init(
           akka.cluster.sharding.typed.scaladsl.Entity(
-            typeKey = EntityTypeKey[MessageEnvelope](name),
+            typeKey = EntityTypeKey[Payload](name),
             createBehavior = _ => new ShardEntity(rts)(onMessage).behavior
           )
         )
       )
     } yield
       new ShardingImpl[Msg] {
-        override val getShardingRegion: ActorRef[ShardingEnvelope[MessageEnvelope]] = shardingRegion
+        override val getShardingRegion: ActorRef[ShardingEnvelope[Payload]] = shardingRegion
       }
 
 //  NOTE: no support for cluster sharding proxy on akka typed
@@ -90,7 +90,7 @@ object Sharding {
 
   private[sharding] trait ShardingImpl[Msg] extends Sharding[Msg] {
 
-    val getShardingRegion: ActorRef[ShardingEnvelope[MessageEnvelope]]
+    val getShardingRegion: ActorRef[ShardingEnvelope[Payload]]
 
     override def send(entityId: String, data: Msg): Task[Unit] =
       Task(getShardingRegion ! ShardingEnvelope(entityId, MessagePayload(data)))
@@ -103,7 +103,7 @@ object Sharding {
     onMessage: Msg => ZIO[Entity[State], Nothing, Unit]
   ) {
 
-    def behavior: Behavior[MessageEnvelope] =
+    def behavior: Behavior[Payload] =
       Behaviors.setup { context =>
 
         val ref: Ref[Option[State]]    = rts.unsafeRun(Ref.make[Option[State]](None))
